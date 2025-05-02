@@ -58,7 +58,7 @@ cd backend
 
 4. Run the FastAPI server:
    ```bash
-   uvicorn app.main:app --reload
+   fastapi dev app/
    ```
 
 ---
