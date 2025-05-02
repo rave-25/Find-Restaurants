@@ -1,32 +1,25 @@
-
-import httpx
 from typing import List
 from fastapi import HTTPException
-
-from app.llm.llm import HuggingFaceLLM
-from .schemas import Restaurant, RestaurantSearch
+import httpx
+from app.llm.llm import HuggingFaceLLM  # Assuming HuggingFaceLLM is properly implemented elsewhere
+from .schemas import RestaurantSearch, Restaurant
 from app.config import Config
 
-API_URL = "https://api.foursquare.com/v3/places/search"
-API_KEY = Config.FOURSQUARE_KEY  # Replace with your API key
-
-# Headers with API Key
-HEADERS = {
-    "Accept": "application/json",
-    "Authorization": API_KEY,
-}
-
-# Price level mapping for Foursquare
+# A map for price levels (could be expanded)
 price_map = {
-    'cheap': '1',
-    'moderate': '2',
-    'expensive': '3',
-    'very expensive': '4'
+    "cheap": 1,
+    "medium": 2,
+    "expensive": 3
 }
 
 class RestaurantService:
-    @staticmethod
-    def extract_restaurant_search(user_input: str) -> dict:
+    def __init__(self, llm_instance: HuggingFaceLLM):
+        """
+        Initializes the service with the LLM instance.
+        """
+        self.llm_instance = llm_instance
+
+    def extract_restaurant_search(self, user_input: str) -> dict:
         """
         Converts the user input message into a JSON command for restaurant search.
         This is a static method since it doesn't depend on the state of the class.
@@ -46,8 +39,9 @@ class RestaurantService:
             }}
         }}
         """
-        llm = HuggingFaceLLM()  # Assuming you have HuggingFaceLLM defined
-        return llm.generate(prompt)
+        result = self.llm_instance.generate(prompt)
+        return result
+
 
     @staticmethod
     async def call_foursquare_api(json_command: RestaurantSearch) -> List[Restaurant]:
@@ -58,18 +52,18 @@ class RestaurantService:
         API_URL = "https://api.foursquare.com/v3/places/search"
         HEADERS = {
             "Accept": "application/json",
-            "Authorization": f"Bearer {Config.FOURSQUARE_KEY}"
+            "Authorization": f"{Config.FOURSQUARE_KEY}"  # Correct format without 'Bearer'
         }
+
 
         # Extract parameters from the LLM response
         params = {
-            "query": json_command.parameters.query,
-            "near": json_command.parameters.near,
-            "open_now": json_command.parameters.open_now,
+            "query": json_command['parameters'].get('query', 'restaurant'),
+            "near": json_command['parameters'].get('near'),
+            "open_now": json_command['parameters'].get('open_now', False),
         }
-
-        # Add price filter if available
-        price = json_command.parameters.price
+        
+        price = json_command['parameters'].get('price')
         if price and price.lower() in price_map:
             params["price"] = price_map[price.lower()]
 
@@ -92,13 +86,8 @@ class RestaurantService:
                                 if item.get("features") else [],
                         rating=item.get("rating"),
                         price_level=item.get("price"),
-                        hours="Not Available"  # Default value if no hours are available
+                        hours=["Not Available"] if not item.get("hours") else item.get("hours", {}).get("regular", [])
                     )
-
-                    # Check if 'hours' exists before trying to access it
-                    hours = item.get("hours", {})
-                    if hours:
-                        restaurant.hours = hours.get("regular", [])
 
                     restaurant_data.append(restaurant)
 

@@ -4,15 +4,14 @@ from jsonformer import Jsonformer
 
 class HuggingFaceLLM:
     def __init__(self, temperature=0, top_k=50, model_name="mistralai/Mistral-7B-Instruct-v0.1"):
-        print("Loading model... (this may take time on first run)")
+        print("Loading model...")
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map="auto",
-            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+            torch_dtype=torch.float16 if torch.backends.mps.is_available() else torch.float32
         )
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-        # Ensure pad_token_id is not the same as eos_token_id
         if self.tokenizer.pad_token_id is None or self.tokenizer.pad_token_id == self.tokenizer.eos_token_id:
             self.tokenizer.pad_token = self.tokenizer.eos_token + "_pad"
             self.tokenizer.pad_token_id = self.tokenizer.convert_tokens_to_ids(self.tokenizer.pad_token)
@@ -42,14 +41,12 @@ class HuggingFaceLLM:
             model=self.model,
             tokenizer=self.tokenizer,
             json_schema=schema,
-            prompt=prompt,
+            prompt=prompt
         )
 
-        print("Generating structured JSON...")
         try:
-            result = builder()
-            print("LLM output:", result)
-            return result
+            print("Generating structured JSON...")
+            return builder()
         except Exception as e:
-            print(f"JSON generation failed: {e}")
+            print(f"Error: {e}")
             return None
